@@ -36,7 +36,6 @@ if __name__ == '__main__':
             loss.backward()
             optim.step()
             losses.append(loss.item())
-            break
         lr_scheduler.step()
         avg_loss = sum(losses) / len(losses)
         print(f'In epoch {e}, average traning loss is {avg_loss}.')

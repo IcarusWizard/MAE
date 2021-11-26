@@ -10,7 +10,7 @@ from model import *
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=1024)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--base_learning_rate', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=0.05)
     parser.add_argument('--total_epoch', type=int, default=100)
     parser.add_argument('--warmup_epoch', type=int, default=5)
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     loss_fn = torch.nn.CrossEntropyLoss()
     acc_fn = lambda logit, label: torch.mean((logit.argmax(dim=-1) == label).float())
 
-    optim = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), weight_decay=args.weight_decay)
+    optim = torch.optim.AdamW(model.parameters(), lr=args.base_learning_rate * args.batch_size / 256, betas=(0.9, 0.999), weight_decay=args.weight_decay)
     lr_func = lambda epoch: min((epoch + 1) / (args.warmup_epoch + 1e-8), 0.5 * (math.cos(epoch / args.total_epoch * math.pi) + 1))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lr_func, verbose=True)
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         for img, label in tqdm(iter(train_dataloader)):
             img = img.to(device)
             label = label.to(device)
-            logits= model(img)
+            logits = model(img)
             loss = loss_fn(logits, label)
             acc = acc_fn(logits, label)
             optim.zero_grad()
@@ -66,7 +66,7 @@ if __name__ == '__main__':
             for img, label in tqdm(iter(val_dataloader)):
                 img = img.to(device)
                 label = label.to(device)
-                logits= model(img)
+                logits = model(img)
                 loss = loss_fn(logits, label)
                 acc = acc_fn(logits, label)
                 losses.append(loss.item())

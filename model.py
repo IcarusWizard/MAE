@@ -62,7 +62,6 @@ class MAE_Encoder(torch.nn.Module):
         trunc_normal_(self.cls_token, std=.02)
         trunc_normal_(self.pos_embedding, std=.02)
 
-
     def forward(self, img):
         patches = self.patchify(img)
         patches = rearrange(patches, 'b c h w -> (h w) b c')
@@ -71,7 +70,9 @@ class MAE_Encoder(torch.nn.Module):
         patches, forward_indexes, backward_indexes = self.shuffle(patches)
 
         patches = torch.cat([self.cls_token.expand(-1, patches.shape[1], -1), patches], dim=0)
+        patches = rearrange(patches, 't b c -> b t c')
         features = self.layer_norm(self.transformer(patches))
+        features = rearrange(features, 'b t c -> t b c')
 
         return features, backward_indexes
 
@@ -99,7 +100,6 @@ class MAE_Decoder(torch.nn.Module):
         trunc_normal_(self.mask_token, std=.02)
         trunc_normal_(self.pos_embedding, std=.02)
 
-
     def forward(self, features, backward_indexes):
         T = features.shape[0]
         backward_indexes = torch.cat([torch.zeros(1, backward_indexes.shape[1]).to(backward_indexes), backward_indexes + 1], dim=0)
@@ -107,7 +107,9 @@ class MAE_Decoder(torch.nn.Module):
         features = take_indexes(features, backward_indexes)
         features = features + self.pos_embedding
 
+        features = rearrange(features, 't b c -> b t c')
         features = self.transformer(features)
+        features = rearrange(features, 'b t c -> t b c')
         features = features[1:] # remove global feature
 
         patches = self.head(features)
@@ -155,7 +157,9 @@ class ViT_Classifier(torch.nn.Module):
         patches = rearrange(patches, 'b c h w -> (h w) b c')
         patches = patches + self.pos_embedding
         patches = torch.cat([self.cls_token.expand(-1, patches.shape[1], -1), patches], dim=0)
+        patches = rearrange(patches, 't b c -> b t c')
         features = self.layer_norm(self.transformer(patches))
+        features = rearrange(features, 'b t c -> t b c')
         logits = self.head(features[0])
         return logits
 

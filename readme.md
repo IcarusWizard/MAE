@@ -30,7 +30,7 @@ See logs by `tensorboard --logdir logs`.
 |ViT-T w/o pretrain|74.13|
 |ViT-T w/  pretrain|**89.77**|
 
-Weights and tensorboard logs are in github release. You can also view the tensorboard at [tensorboard.dev](https://tensorboard.dev/experiment/zngzZ89bTpyM1B2zVrD7Yw/#scalars).
+Weights are in [github release](https://github.com/IcarusWizard/MAE/releases/tag/cifar10). You can also view the tensorboard logs at [tensorboard.dev](https://tensorboard.dev/experiment/zngzZ89bTpyM1B2zVrD7Yw/#scalars).
 
 Visualization of the first 16 images on Cifar10 validation dataset:
 

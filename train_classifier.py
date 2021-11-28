@@ -13,26 +13,29 @@ from utils import setup_seed
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--max_device_batch_size', type=int, default=256)
     parser.add_argument('--base_learning_rate', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=0.05)
     parser.add_argument('--total_epoch', type=int, default=100)
     parser.add_argument('--warmup_epoch', type=int, default=5)
     parser.add_argument('--pretrained_model_path', type=str, default=None)
-    parser.add_argument('--output_model_path', type=str, default='vit-t-mae-scratch.pt')
+    parser.add_argument('--output_model_path', type=str, default='vit-t-classifier-from_scratch.pt')
 
     args = parser.parse_args()
 
     setup_seed(args.seed)
 
-    assert args.batch_size % args.max_device_batch_size == 0
-    steps_per_update = args.batch_size // args.max_device_batch_size
+    batch_size = args.batch_size
+    load_batch_size = min(args.max_device_batch_size, batch_size)
+
+    assert batch_size % load_batch_size == 0
+    steps_per_update = batch_size // load_batch_size
 
     train_dataset = torchvision.datasets.CIFAR10('data', train=True, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
     val_dataset = torchvision.datasets.CIFAR10('data', train=False, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, args.max_device_batch_size, shuffle=True, num_workers=4)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, args.max_device_batch_size, shuffle=False, num_workers=4)
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, load_batch_size, shuffle=True, num_workers=4)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, load_batch_size, shuffle=False, num_workers=4)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if args.pretrained_model_path is not None:

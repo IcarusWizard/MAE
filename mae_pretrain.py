@@ -26,12 +26,15 @@ if __name__ == '__main__':
 
     setup_seed(args.seed)
 
-    assert args.batch_size % args.max_device_batch_size == 0
-    steps_per_update = args.batch_size // args.max_device_batch_size
+    batch_size = args.batch_size
+    load_batch_size = min(args.max_device_batch_size, batch_size)
+
+    assert batch_size % load_batch_size == 0
+    steps_per_update = batch_size // load_batch_size
 
     train_dataset = torchvision.datasets.CIFAR10('data', train=True, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
     val_dataset = torchvision.datasets.CIFAR10('data', train=False, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
-    dataloader = torch.utils.data.DataLoader(train_dataset, args.max_device_batch_size, shuffle=True, num_workers=4)
+    dataloader = torch.utils.data.DataLoader(train_dataset, load_batch_size, shuffle=True, num_workers=4)
     writer = SummaryWriter(os.path.join('logs', 'cifar10', 'mae-pretrain'))
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

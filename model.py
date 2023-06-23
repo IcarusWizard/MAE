@@ -123,8 +123,8 @@ class MAE_Decoder(torch.nn.Module):
 
 class MAE_ViT(torch.nn.Module):
     def __init__(self,
-                 image_size=32,
-                 patch_size=2,
+                 image_size=224,
+                 patch_size=16,
                  emb_dim=192,
                  encoder_layer=12,
                  encoder_head=3,

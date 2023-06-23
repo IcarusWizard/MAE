@@ -5,10 +5,68 @@ import torch
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor, Compose, Normalize
+import torchvision.transforms as transforms
+from torchvision import datasets
 from tqdm import tqdm
 
 from model import *
 from utils import setup_seed
+import datautils
+import PIL
+
+
+def dataaug(data='imagenet'):
+    scale_lower = 0.08
+    if data == 'cifar':
+        color_dist_s = 0.5
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                32,
+                scale=(scale_lower, 1.0),
+                interpolation=PIL.Image.BICUBIC,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(0.5, 0.5),
+            transforms.RandomHorizontalFlip(),
+            # datautils.get_color_distortion(s=color_dist_s),
+            datautils.Clip(),
+        ])
+        test_transform = train_transform
+
+    elif data == 'imagenet':
+        from datautils import GaussianBlur
+        color_dist_s = 1.0
+        im_size = 224
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                im_size,
+                scale=(scale_lower, 1.0),
+                interpolation=PIL.Image.BICUBIC,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(0.5, 0.5),
+            transforms.RandomHorizontalFlip(0.5),
+            # datautils.get_color_distortion(s=self.hparams.color_dist_s),
+            # GaussianBlur(im_size // 10, 0.5),
+            datautils.Clip(),
+        ])
+        test_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                im_size,
+                scale=(scale_lower, 1.0),
+                interpolation=PIL.Image.BICUBIC,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(0.5, 0.5),
+            # transforms.RandomHorizontalFlip(0.5),
+            # datautils.get_color_distortion(s=self.hparams.color_dist_s),
+            # GaussianBlur(im_size // 10, 0.5),
+            datautils.Clip(),
+        ])
+        # test_transform = train_transform
+    return train_transform, test_transform
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -20,7 +78,10 @@ if __name__ == '__main__':
     parser.add_argument('--total_epoch', type=int, default=100)
     parser.add_argument('--warmup_epoch', type=int, default=5)
     parser.add_argument('--pretrained_model_path', type=str, default=None)
-    parser.add_argument('--output_model_path', type=str, default='vit-t-classifier-from_scratch.pt')
+    parser.add_argument('--output_model_path', type=str, default='ckpt/vit-t-classifier-from_scratch.pt')
+    parser.add_argument('--train_dir', type=str, default='../dataset/imagenet100/train')
+    parser.add_argument('--val_dir', type=str, default='../dataset/imagenet100/val')
+    parser.add_argument('--data', type=str, default='imagenet')
 
     args = parser.parse_args()
 
@@ -32,18 +93,23 @@ if __name__ == '__main__':
     assert batch_size % load_batch_size == 0
     steps_per_update = batch_size // load_batch_size
 
-    train_dataset = torchvision.datasets.CIFAR10('data', train=True, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
-    val_dataset = torchvision.datasets.CIFAR10('data', train=False, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
+    # train_dataset = torchvision.datasets.CIFAR10('data', train=True, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
+    # val_dataset = torchvision.datasets.CIFAR10('data', train=False, download=True, transform=Compose([ToTensor(), Normalize(0.5, 0.5)]))
+
+    train_transform, test_transform = dataaug(data=args.data)
+    train_dataset = datasets.ImageFolder(args.train_dir, transform=train_transform)
+    val_dataset   = datasets.ImageFolder(args.val_dir, transform=test_transform)
+
     train_dataloader = torch.utils.data.DataLoader(train_dataset, load_batch_size, shuffle=True, num_workers=4)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, load_batch_size, shuffle=False, num_workers=4)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if args.pretrained_model_path is not None:
-        model = torch.load(args.pretrained_model_path, map_location='cpu')
-        writer = SummaryWriter(os.path.join('logs', 'cifar10', 'pretrain-cls'))
+        model = torch.load(args.pretrained_model_path, map_location=device)
+        writer = SummaryWriter(os.path.join('logs', args.data, 'pretrain-cls'))
     else:
         model = MAE_ViT()
-        writer = SummaryWriter(os.path.join('logs', 'cifar10', 'scratch-cls'))
+        writer = SummaryWriter(os.path.join('logs', args.data, 'scratch-cls'))
     model = ViT_Classifier(model.encoder, num_classes=10).to(device)
 
     loss_fn = torch.nn.CrossEntropyLoss()
@@ -52,6 +118,8 @@ if __name__ == '__main__':
     optim = torch.optim.AdamW(model.parameters(), lr=args.base_learning_rate * args.batch_size / 256, betas=(0.9, 0.999), weight_decay=args.weight_decay)
     lr_func = lambda epoch: min((epoch + 1) / (args.warmup_epoch + 1e-8), 0.5 * (math.cos(epoch / args.total_epoch * math.pi) + 1))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lr_func, verbose=True)
+
+    os.makedirs('ckpt', exist_ok=True)
 
     best_val_acc = 0
     step_count = 0

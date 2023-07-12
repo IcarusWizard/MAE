@@ -114,7 +114,7 @@ class MAE_Decoder(torch.nn.Module):
 
         patches = self.head(features)
         mask = torch.zeros_like(patches)
-        mask[T:] = 1
+        mask[T-1:] = 1
         mask = take_indexes(mask, backward_indexes[1:] - 1)
         img = self.patch2img(patches)
         mask = self.patch2img(mask)
